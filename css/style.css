@@ -497,10 +497,6 @@ a { text-decoration: none; color: var(--text-dark); }
   border-radius: 4px;
   transition: all 0.2s;
 }
-.calendar-day:hover:not(.empty):not(.disabled) {
-  background-color: var(--primary-light);
-  color: var(--primary-color);
-}
 .calendar-day.selected {
   background-color: var(--danger-color);
   color: white !important;
