@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // Add date and time from the right column
             const pickupDate = document.getElementById("pickupDateInput");
-            const pickupTime = document.getElementById("timeDropdown");
+            const pickupTime = document.getElementById("timeInput");
             if (pickupDate) formData.pickup_date = pickupDate.value;
             if (pickupTime) formData.pickup_time = pickupTime.value;
             
