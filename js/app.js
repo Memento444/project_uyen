@@ -136,6 +136,37 @@ document.addEventListener("DOMContentLoaded", () => {
         const originalOnclick = dashboardBtn.onclick;
         dashboardBtn.onclick = async (e) => {
             e.preventDefault();
+            
+            const pickupDate = document.getElementById("pickupDateInput");
+            const pickupTime = document.getElementById("timeInput");
+            
+            // Validate time
+            if (pickupDate && pickupTime && pickupDate.value && pickupTime.value) {
+                const today = new Date();
+                const selDateParts = pickupDate.value.split('-');
+                const selYear = parseInt(selDateParts[0], 10);
+                const selMonth = parseInt(selDateParts[1], 10) - 1;
+                const selDay = parseInt(selDateParts[2], 10);
+                
+                const isToday = selYear === today.getFullYear() && 
+                                selMonth === today.getMonth() && 
+                                selDay === today.getDate();
+                                
+                if (isToday) {
+                    const [optHourStr, optMinStr] = pickupTime.value.split(':');
+                    const optHour = parseInt(optHourStr, 10);
+                    const optMin = parseInt(optMinStr, 10);
+                    
+                    const currentHours = today.getHours();
+                    const currentMinutes = today.getMinutes();
+                    
+                    if (optHour < currentHours || (optHour === currentHours && optMin <= currentMinutes)) {
+                        alert("ไม่สามารถเลือกเวลารับงานที่ผ่านไปแล้วได้ กรุณาเลือกเวลาใหม่");
+                        return; // Stop submission
+                    }
+                }
+            }
+
             dashboardBtn.textContent = "กำลังส่ง...";
             dashboardBtn.disabled = true;
 
@@ -143,15 +174,14 @@ document.addEventListener("DOMContentLoaded", () => {
             const formData = form ? Object.fromEntries(new FormData(form).entries()) : {};
             
             // Add date and time from the right column
-            const pickupDate = document.getElementById("pickupDateInput");
-            const pickupTime = document.getElementById("timeInput");
             if (pickupDate) formData.pickup_date = pickupDate.value;
             if (pickupTime) formData.pickup_time = pickupTime.value;
             
             await window.API.submitPrintJob(formData);
             
             // Execute original redirect
-            originalOnclick();
+            if (originalOnclick) originalOnclick();
+            else window.location.href = './queue.html';
         };
     }
 
@@ -161,6 +191,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const prevMonthBtn = document.getElementById("prevMonth");
     const nextMonthBtn = document.getElementById("nextMonth");
     const pickupDateInput = document.getElementById("pickupDateInput");
+    const timeInput = document.getElementById("timeInput");
     
     if (monthYearDisplay && calendarDays) {
         let currentDate = new Date();
