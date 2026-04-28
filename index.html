@@ -16,24 +16,23 @@
     <div class="auth-wrapper">
         <div class="auth-card">
             <!-- Icon placeholder -->
-            <div class="auth-logo">
-                <i class="fa-solid fa-print" style="font-size: 48px; color: #4b5563;"></i>
+            <div class="auth-logo" style="margin-bottom: 0.5rem;">
+                <img src="./images/logo.png" alt="UYEN Logo" style="width: 200px; max-width: 100%; height: auto;">
             </div>
             
-            <h1 class="auth-title">UYEN</h1>
             <div class="auth-subtitle">ENJOY PRINTING</div>
             
             <form id="loginForm" action="./dashboard.html">
                 <div class="form-group">
                     <label class="form-label">USERNAME</label>
-                    <input type="text" class="form-control" name="username" required>
+                    <input type="text" class="form-control" name="username" id="usernameInput" oninput="validateUsername(this)" required>
                 </div>
                 
                 <div class="form-group">
                     <label class="form-label">PASSWORD</label>
                     <div class="input-group">
-                        <input type="password" class="form-control" name="password" id="passwordInput" required>
-                        <button type="button" class="input-action" id="togglePassword">SHOW</button>
+                        <input type="password" class="form-control" name="password" id="passwordInput" oninput="validatePassword(this)" required>
+                        <button type="button" class="input-action" onclick="togglePassword('passwordInput', this)">SHOW</button>
                     </div>
                 </div>
                 
@@ -46,6 +45,7 @@
         </div>
     </div>
 
+    <script src="./js/utils.js"></script>
     <script src="./js/app.js"></script>
 </body>
 </html>

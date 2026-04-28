@@ -5,6 +5,60 @@
 
 document.addEventListener("DOMContentLoaded", () => {
     
+    // --- Session Management ---
+    const displayUserName = document.getElementById("displayUserName");
+    if (displayUserName) {
+        const storedName = localStorage.getItem("user_name");
+        if (storedName) {
+            displayUserName.textContent = storedName;
+        }
+    }
+    
+    // --- Fetch Metadata (Dashboard) ---
+    const paperTypeSelect = document.getElementById("paperTypeSelect");
+    const paperSizeSelect = document.getElementById("paperSizeSelect");
+    if (paperTypeSelect && paperSizeSelect) {
+        // Fetch Paper Types
+        fetch('http://18.142.232.26:8070/orders/meta/paper-types', {
+            method: 'GET',
+            headers: { 'accept': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            paperTypeSelect.innerHTML = '';
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.paper_type_id;
+                option.textContent = item.name;
+                paperTypeSelect.appendChild(option);
+            });
+        })
+        .catch(err => {
+            console.error("Failed to load paper types", err);
+            paperTypeSelect.innerHTML = '<option value="1">Plain (Fallback)</option>';
+        });
+
+        // Fetch Paper Sizes
+        fetch('http://18.142.232.26:8070/orders/meta/paper-sizes', {
+            method: 'GET',
+            headers: { 'accept': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            paperSizeSelect.innerHTML = '';
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.paper_size_id;
+                option.textContent = item.name;
+                paperSizeSelect.appendChild(option);
+            });
+        })
+        .catch(err => {
+            console.error("Failed to load paper sizes", err);
+            paperSizeSelect.innerHTML = '<option value="1">A4 (Fallback)</option>';
+        });
+    }
+
     // --- Mobile Nav Logic ---
     const mobileMenuBtn = document.getElementById("mobileMenuBtn");
     const mobileMenuDropdown = document.getElementById("mobileMenuDropdown");
@@ -27,34 +81,91 @@ document.addEventListener("DOMContentLoaded", () => {
     if (loginForm) {
         loginForm.addEventListener("submit", async (e) => {
             e.preventDefault();
+            
+            if (typeof clearValidationErrors === "function") clearValidationErrors();
+            
             const btn = loginForm.querySelector("button[type='submit']");
             btn.textContent = "LOGGING IN...";
             btn.disabled = true;
 
-            // const formData = new FormData(loginForm);
-            try {
-                // Mock API call
-                // await window.API.login(formData.get("username"), formData.get("password"));
-                // Redirect on success
-                window.location.href = loginForm.action;
-            } catch (error) {
-                console.error("Login failed", error);
+            const usernameInput = loginForm.querySelector('input[name="username"]');
+            const passwordInput = loginForm.querySelector('input[name="password"]');
+            
+            let errors = [];
+            if (!usernameInput.value.trim()) {
+                errors.push({ input: usernameInput, label: "USERNAME", message: "กรุณากรอก Username" });
+            }
+            if (!passwordInput.value) {
+                errors.push({ input: passwordInput, label: "PASSWORD", message: "กรุณากรอก Password" });
+            }
+            
+            if (errors.length > 0) {
+                if (typeof showValidationModal === "function") {
+                    showValidationModal(errors);
+                } else {
+                    alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+                }
                 btn.textContent = "LOGIN";
                 btn.disabled = false;
+                return;
             }
-        });
-    }
 
-    const togglePasswordBtn = document.getElementById("togglePassword");
-    const passwordInput = document.getElementById("passwordInput");
-    if (togglePasswordBtn && passwordInput) {
-        togglePasswordBtn.addEventListener("click", () => {
-            if (passwordInput.type === "password") {
-                passwordInput.type = "text";
-                togglePasswordBtn.textContent = "HIDE";
-            } else {
-                passwordInput.type = "password";
-                togglePasswordBtn.textContent = "SHOW";
+            try {
+                const response = await fetch('http://18.142.232.26:8070/customer_login/', {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_name: usernameInput.value,
+                        password: passwordInput.value
+                    })
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (e) {
+                    console.warn("Response is not JSON");
+                }
+
+                if (data && (data.Not_Suspended === false || data.not_suspended === false || (data.detail && data.detail.toLowerCase().includes('inactive')))) {
+                    if (typeof showStatusModal === "function") {
+                        showStatusModal('Error', 'คุณโดนBlacklist!', 'error');
+                    } else {
+                        alert('คุณโดนBlacklist!');
+                    }
+                    btn.textContent = "LOGIN";
+                    btn.disabled = false;
+                    return;
+                }
+
+                if (response.ok) {
+                    if (data && data.customer_id) localStorage.setItem('user_id', data.customer_id);
+                    else if (data && data.id) localStorage.setItem('user_id', data.id);
+                    
+                    localStorage.setItem('user_name', usernameInput.value);
+                    window.location.href = loginForm.action;
+                } else {
+                    if (typeof showStatusModal === "function") {
+                        const errorMsg = data && data.detail ? data.detail : 'Invalid username or password';
+                        showStatusModal('Error', errorMsg, 'error');
+                    } else {
+                        alert('Login failed');
+                    }
+                    btn.textContent = "LOGIN";
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                console.error("Login request failed", error);
+                if (typeof showStatusModal === "function") {
+                    showStatusModal('Error', 'Cannot connect to server', 'error');
+                } else {
+                    alert('Cannot connect to server');
+                }
+                btn.textContent = "LOGIN";
+                btn.disabled = false;
             }
         });
     }
@@ -63,17 +174,99 @@ document.addEventListener("DOMContentLoaded", () => {
     if (registerForm) {
         registerForm.addEventListener("submit", async (e) => {
             e.preventDefault();
+            
+            if (typeof clearValidationErrors === "function") clearValidationErrors();
+            
             const btn = registerForm.querySelector("button[type='submit']");
             btn.textContent = "REGISTERING...";
             btn.disabled = true;
 
-            const formData = new FormData(registerForm);
-            const data = Object.fromEntries(formData.entries());
+            const usernameInput = registerForm.querySelector('input[name="username"]');
+            const emailInput = registerForm.querySelector('input[name="email"]');
+            const passwordInput = registerForm.querySelector('input[name="password"]');
+            const confirmInput = registerForm.querySelector('input[name="confirm_password"]');
+            const phoneInput = registerForm.querySelector('input[name="phone"]');
+
+            let errors = [];
+            
+            if (!usernameInput.value.trim()) {
+                errors.push({ input: usernameInput, label: "USERNAME", message: "กรุณากรอก Username" });
+            }
+            
+            if (!emailInput.value.trim() || (typeof isValidEmail === 'function' && !isValidEmail(emailInput.value))) {
+                errors.push({ input: emailInput, label: "EMAIL", message: "รูปแบบ Email ไม่ถูกต้อง" });
+            }
+            
+            if (!passwordInput.value) {
+                errors.push({ input: passwordInput, label: "PASSWORD", message: "กรุณากรอก Password" });
+            } else if (passwordInput.value.length < 6) {
+                errors.push({ input: passwordInput, label: "PASSWORD", message: "Password ต้องมีความยาวอย่างน้อย 6 ตัวอักษร" });
+            }
+            
+            if (passwordInput.value !== confirmInput.value) {
+                errors.push({ input: confirmInput, label: "CONFIRM PASSWORD", message: "Password ไม่ตรงกัน" });
+            }
+            
+            const phoneRaw = phoneInput.value.replace(/\D/g, '');
+            if (phoneRaw.length < 10) {
+                errors.push({ input: phoneInput, label: "PHONE NO.", message: "เบอร์โทรศัพท์ต้องมี 10 หลัก" });
+            }
+
+            if (errors.length > 0) {
+                if (typeof showValidationModal === "function") {
+                    showValidationModal(errors);
+                } else {
+                    alert("กรุณาตรวจสอบข้อมูลให้ถูกต้อง");
+                }
+                btn.textContent = "SIGN UP NOW";
+                btn.disabled = false;
+                return;
+            }
+
+            const payload = {
+                name: usernameInput.value,
+                email: emailInput.value,
+                phone_no: phoneInput.value,
+                username: usernameInput.value,
+                password: passwordInput.value
+            };
             
             try {
-                await window.API.register(data);
-                window.location.href = registerForm.action; // Redirect to login
+                const response = await fetch('http://18.142.232.26:8070/customer_reg', {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    if (typeof showStatusModal === "function") {
+                        showStatusModal('Success', 'Registration successful! Redirecting...', 'success', 2000);
+                        setTimeout(() => {
+                            window.location.href = registerForm.action;
+                        }, 2000);
+                    } else {
+                        alert('Registration successful!');
+                        window.location.href = registerForm.action;
+                    }
+                } else {
+                    if (typeof showStatusModal === "function") {
+                        showStatusModal('Error', 'Registration failed', 'error');
+                    } else {
+                        alert('Registration failed');
+                    }
+                    btn.textContent = "SIGN UP NOW";
+                    btn.disabled = false;
+                }
             } catch (error) {
+                console.error("Register request failed", error);
+                if (typeof showStatusModal === "function") {
+                    showStatusModal('Error', 'Cannot connect to server', 'error');
+                } else {
+                    alert('Cannot connect to server');
+                }
                 btn.textContent = "SIGN UP NOW";
                 btn.disabled = false;
             }
@@ -96,8 +289,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 icon.className = "fa-solid fa-spinner fa-spin upload-icon";
                 text.textContent = "Uploading...";
 
-                // Mock upload
-                await window.API.uploadFile(file);
+                // Mock upload delay
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
                 // Reset UI to indicate success
                 icon.className = "fa-solid fa-check text-success upload-icon";
@@ -137,6 +330,16 @@ document.addEventListener("DOMContentLoaded", () => {
         dashboardBtn.onclick = async (e) => {
             e.preventDefault();
             
+            if (typeof clearValidationErrors === "function") clearValidationErrors();
+
+            let errors = [];
+            const fileInput = document.getElementById("fileInput");
+
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                const uploadZone = document.getElementById("uploadZone");
+                errors.push({ input: uploadZone || fileInput, label: "ไฟล์งานพิมพ์", message: "กรุณาอัพโหลดไฟล์" });
+            }
+
             const pickupDate = document.getElementById("pickupDateInput");
             const pickupTime = document.getElementById("timeInput");
             
@@ -161,10 +364,18 @@ document.addEventListener("DOMContentLoaded", () => {
                     const currentMinutes = today.getMinutes();
                     
                     if (optHour < currentHours || (optHour === currentHours && optMin <= currentMinutes)) {
-                        alert("ไม่สามารถเลือกเวลารับงานที่ผ่านไปแล้วได้ กรุณาเลือกเวลาใหม่");
-                        return; // Stop submission
+                        errors.push({ input: pickupTime, label: "เวลารับงาน", message: "ไม่สามารถเลือกเวลาที่ผ่านไปแล้วได้" });
                     }
                 }
+            }
+
+            if (errors.length > 0) {
+                if (typeof showValidationModal === "function") {
+                    showValidationModal(errors);
+                } else {
+                    alert(errors[0].message);
+                }
+                return; // Stop submission
             }
 
             dashboardBtn.textContent = "กำลังส่ง...";
@@ -177,11 +388,66 @@ document.addEventListener("DOMContentLoaded", () => {
             if (pickupDate) formData.pickup_date = pickupDate.value;
             if (pickupTime) formData.pickup_time = pickupTime.value;
             
-            await window.API.submitPrintJob(formData);
-            
-            // Execute original redirect
-            if (originalOnclick) originalOnclick();
-            else window.location.href = './queue.html';
+            try {
+                const apiFormData = new FormData();
+                apiFormData.append('user_id', localStorage.getItem('user_id') || 1);
+                apiFormData.append('paper_size_id', formData.paper_size_id || 1);
+                apiFormData.append('paper_type_id', formData.paper_type_id || 1);
+                apiFormData.append('copy_amount', formData.copies || 1);
+                apiFormData.append('price_per_unit', 1);
+                let formattedPickupDate = '';
+                if (formData.pickup_date && formData.pickup_time) {
+                    formattedPickupDate = `${formData.pickup_date}T${formData.pickup_time}:00`;
+                } else if (formData.pickup_date) {
+                    formattedPickupDate = `${formData.pickup_date}T00:00:00`;
+                }
+                apiFormData.append('pickup_date', formattedPickupDate);
+                apiFormData.append('note', formData.notes || '');
+                
+                if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                    apiFormData.append('file', fileInput.files[0]);
+                }
+
+                const response = await fetch('http://18.142.232.26:8070/orders/create', {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json'
+                        // Do not set Content-Type header when using FormData, browser will set it with boundary
+                    },
+                    body: apiFormData
+                });
+
+                if (response.ok) {
+                    if (typeof showStatusModal === "function") {
+                        showStatusModal('Success', 'ส่งงานพิมพ์เรียบร้อย', 'success', 1500);
+                        setTimeout(() => {
+                            if (originalOnclick) originalOnclick();
+                            else window.location.reload();
+                        }, 1500);
+                    } else {
+                        alert('ส่งงานพิมพ์เรียบร้อย');
+                        if (originalOnclick) originalOnclick();
+                        else window.location.reload();
+                    }
+                } else {
+                    if (typeof showStatusModal === "function") {
+                        showStatusModal('Error', 'เกิดข้อผิดพลาดในการส่งงาน', 'error');
+                    } else {
+                        alert('เกิดข้อผิดพลาดในการส่งงาน');
+                    }
+                    dashboardBtn.textContent = "ส่งพิมพ์เอกสาร";
+                    dashboardBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error("Submit Print Job failed", error);
+                if (typeof showStatusModal === "function") {
+                    showStatusModal('Error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+                } else {
+                    alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+                }
+                dashboardBtn.textContent = "ส่งพิมพ์เอกสาร";
+                dashboardBtn.disabled = false;
+            }
         };
     }
 
@@ -269,8 +535,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (confirmCancel) {
                     e.target.textContent = "กำลังยกเลิก...";
                     e.target.disabled = true;
-                    // Mock id extraction
-                    await window.API.cancelJob(71);
+                    // Mock delay
+                    await new Promise(resolve => setTimeout(resolve, 800));
                     card.style.opacity = "0.5";
                     e.target.textContent = "ยกเลิกแล้ว";
                 }
